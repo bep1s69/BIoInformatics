@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>PromKappa - JS Version</title>
+<style>
+    body { font-family: Arial; margin: 20px; }
+    textarea { width: 100%; height: 120px; }
+    #canvas { border: 1px solid black; margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<h2>PromKappa – JavaScript Implementation</h2>
+
+<label>DNA Sequence:</label><br>
+<textarea id="seqInput">PASTE YOUR DNA SEQUENCE HERE</textarea><br><br>
+
+<label>Sliding Window (default 30):</label>
+<input type="number" id="windowSize" value="30"><br><br>
+
+<button onclick="runPromKappa()">Generate Pattern</button>
+
+<canvas id="canvas" width="600" height="600"></canvas>
+
+<p id="centerOutput"></p>
+
+<script>
+// ==============================
+// 1. CGTOT (whole sequence C+G%)
+// ==============================
+function cgTotal(seq) {
+    seq = seq.toUpperCase();
+    let cg = 0;
+    for (let c of seq) if (c === "C" || c === "G") cg++;
+    return 100 * cg / seq.length;
+}
+
+// ====================================================
+// 2. CGSW for sliding windows (scaled by CGTOT)
+// ====================================================
+function cgWindow(window, cgtot) {
+    window = window.toUpperCase();
+    let cg = 0;
+    for (let c of window) if (c === "C" || c === "G") cg++;
+    return cgtot * (cg / window.length);
+}
+
+// ===============================================
+// 3. Kappa Index of Coincidence for one window
+//    (Gagniuc & Ionescu algorithm)
+// ===============================================
+function kappaIC(window) {
+    let A = window.toUpperCase();
+    let N = A.length - 1;
+    if (N <= 0) return 0;
+
+    let T = 0;
+    for (let u = 1; u <= N; u++) {
+        let B = A.slice(u);
+        let C = 0;
+        for (let i = 0; i < B.length; i++) {
+            if (A[i] === B[i]) C++;
+        }
+        T += (C / B.length) * 100;
+    }
+    return Math.round((T / N) * 100) / 100;
+}
+
+// ==============================
+// 4. Draw pattern on canvas
+// ==============================
+function drawPattern(points, center) {
+    let canvas = document.getElementById("canvas");
+    let ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // coordinate scaling
+    let margin = 40;
+    let maxX = Math.max(...points.map(p => p.x), center.x);
+    let maxY = Math.max(...points.map(p => p.y), center.y);
+
+    ctx.beginPath();
+    ctx.strokeStyle = "gray";
+    ctx.moveTo(margin, margin);
+    ctx.lineTo(margin, canvas.height - margin);
+    ctx.lineTo(canvas.width - margin, canvas.height - margin);
+    ctx.stroke();
+
+    // draw points
+    ctx.fillStyle = "blue";
+    for (let p of points) {
+        let x = margin + (p.x / maxX) * (canvas.width - 2 * margin);
+        let y = (canvas.height - margin) - (p.y / maxY) * (canvas.height - 2 * margin);
+        ctx.fillRect(x - 2, y - 2, 4, 4);
+    }
+
+    // draw center
+    ctx.fillStyle = "red";
+    let cx = margin + (center.x / maxX) * (canvas.width - 2 * margin);
+    let cy = (canvas.height - margin) - (center.y / maxY) * (canvas.height - 2 * margin);
+    ctx.fillRect(cx - 4, cy - 4, 8, 8);
+}
+
+// ======================================
+// 5. MAIN FUNCTION
+// ======================================
+function runPromKappa() {
+    let seq = document.getElementById("seqInput").value.replace(/\s+/g, "").toUpperCase();
+    let win = parseInt(document.getElementById("windowSize").value);
+
+    if (seq.length < win) {
+        alert("Sequence is too short for the sliding window.");
+        return;
+    }
+
+    let cgtot = cgTotal(seq);
+
+    let points = [];
+    for (let i = 0; i <= seq.length - win; i++) {
+        let w = seq.slice(i, i + win);
+        let cg = cgWindow(w, cgtot);
+        let ic = kappaIC(w);
+        points.push({ x: cg, y: ic });
+    }
+
+    // compute center of weight
+    let sumX = points.reduce((s, p) => s + p.x, 0);
+    let sumY = points.reduce((s, p) => s + p.y, 0);
+    let center = {
+        x: sumX / points.length,
+        y: sumY / points.length
+    };
+
+    // draw results
+    drawPattern(points, center);
+
+    document.getElementById("centerOutput").innerHTML =
+        `<b>Center of Weight</b>: CG = ${center.x.toFixed(2)}, IC = ${center.y.toFixed(2)}`;
+}
+</script>
+
+</body>
+</html>
